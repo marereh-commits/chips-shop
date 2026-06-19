@@ -13,8 +13,9 @@ const MENU_ITEMS = [
     id: 1, 
     name: "Plain Chips (Regular)", 
     price: 100, 
-    desc: "Classic crisp golden fries cooked to perfection", 
+    desc: "Delicious golden crispy regular chips served hot.", 
     category: "Meals", 
+    tag: "Popular",
     image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500&auto=format&fit=crop&q=60",
     requiresId: false
   },
@@ -22,73 +23,51 @@ const MENU_ITEMS = [
     id: 2, 
     name: "Chips Masala", 
     price: 150, 
-    desc: "Fries coated in spicy, tangy signature masala sauce", 
+    desc: "Fresh fries tossed in a rich, deeply seasoned classic spicy masala sauce.", 
     category: "Meals", 
+    tag: "Top Rated",
     image: "https://images.unsplash.com/photo-1585109649139-366815a0d713?w=500&auto=format&fit=crop&q=60",
     requiresId: false
   },
   { 
     id: 3, 
-    name: "Loaded Chips", 
-    price: 250, 
-    desc: "Fries topped heavily with melted cheese and minced beef", 
-    category: "Meals", 
-    image: "https://images.unsplash.com/photo-1576107232684-1279f390859f?w=500&auto=format&fit=crop&q=60",
-    requiresId: false
-  },
-  { 
-    id: 4, 
-    name: "Smokie (Per Piece)", 
+    name: "Smokie", 
     price: 40, 
-    desc: "Perfect side companion for your hot chips", 
+    desc: "Savory smoked sausage grilled perfectly for a quick, tasty bite.", 
     category: "Sides", 
+    tag: "Quick Snack",
     image: "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=500&auto=format&fit=crop&q=60",
     requiresId: false
   },
   { 
-    id: 5, 
+    id: 4, 
     name: "Soda 500ml", 
-    price: 70, 
-    desc: "Chilled refreshing carbonated soda", 
+    price: 40, 
+    desc: "Refreshing carbonated cold soda to pair perfectly with your meal.", 
     category: "Drinks", 
+    tag: "Chilled",
     image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop&q=60",
     requiresId: false
   },
   { 
-    id: 6, 
-    name: "Fresh Mango Juice", 
-    price: 120, 
-    desc: "Thick, sweet, and perfectly blended local mangoes", 
+    id: 5, 
+    name: "Mango Juice", 
+    price: 40, 
+    desc: "Sweet and naturally soothing fresh juice made from sweet local mangoes.", 
     category: "Drinks", 
+    tag: "100% Fruit",
     image: "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=500&auto=format&fit=crop&q=60",
     requiresId: false
   },
   { 
-    id: 7, 
-    name: "Fresh Passion Juice", 
-    price: 120, 
-    desc: "Tangy and refreshing blended passion fruit juice with seeds strained", 
+    id: 6, 
+    name: "Mango Juice Alternative", 
+    price: 40, 
+    desc: "A bright alternative blend loaded with crisp and energetic tropical notes.", 
     category: "Drinks", 
-    image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=500&auto=format&fit=crop&q=60",
+    tag: "Refreshing",
+    image: "https://images.unsplash.com/photo-1576107232684-1279f390859f?w=500&auto=format&fit=crop&q=60",
     requiresId: false
-  },
-  { 
-    id: 8, 
-    name: "Pineapple Mint Blend", 
-    price: 140, 
-    desc: "Sweet tropical pineapple blended with a cool touch of fresh mint leaves", 
-    category: "Drinks", 
-    image: "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=500&auto=format&fit=crop&q=60",
-    requiresId: false
-  },
-  { 
-    id: 9, 
-    name: "Tusker Lager (500ml)", 
-    price: 260, 
-    desc: "Cold, crisp iconic local lager. Requires a legal age National ID check at purchase.", 
-    category: "Drinks", 
-    image: "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=500&auto=format&fit=crop&q=60",
-    requiresId: true
   }
 ];
 
@@ -100,29 +79,55 @@ export default function ChipsBaseApp() {
   const [locError, setLocError] = useState<string | null>(null);
   const [isBypassed, setIsBypassed] = useState(false);
 
+  // Store Operational Hours State
+  const [isOpen, setIsOpen] = useState(false);
+
   // App States
   const [cart, setCart] = useState<{ [key: number]: number }>({});
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showCartDrawer, setShowCartDrawer] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({ name: "", phone: "", address: "" });
   const [idNumber, setIdNumber] = useState("");
   const [activeCategory, setActiveCategory] = useState("Meals");
 
+  // Submission Safety State Lock
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Realtime Order Live Tracking States
   const [currentOrderId, setCurrentOrderId] = useState<number | null>(null);
   const [liveStatus, setLiveStatus] = useState<string>("Frying");
+  
+  // FIXED: New state to preserve the accurate total price after checkout resets the basket
+  const [finalOrderTotal, setFinalOrderTotal] = useState<number>(0);
 
-  // Detect local hosting blocks for development bypass
-  const isDevelopmentEnvironment = 
-    typeof window !== "undefined" && 
-    (window.location.hostname === "localhost" || 
-     window.location.hostname.startsWith("192.168."));
-
-  // Check if any added item requires an age restriction check
   const needsIdVerification = Object.entries(cart).some(([id, qty]) => {
     const item = MENU_ITEMS.find((m) => m.id === Number(id));
     return item?.requiresId && qty > 0;
   });
+
+  // Operational Hours Logic (9:30 AM - 8:00 PM)
+  useEffect(() => {
+    const checkStoreStatus = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+
+      const currentTimeInMinutes = hours * 60 + minutes;
+      const openTimeInMinutes = 9 * 60 + 30;  // 9:30 AM
+      const closeTimeInMinutes = 20 * 60;     // 8:00 PM
+
+      if (currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes) {
+        setIsOpen(true);
+      } else {
+        setIsOpen(false);
+      }
+    };
+
+    checkStoreStatus();
+    const interval = setInterval(checkStoreStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Realtime Database Listener Hook
   useEffect(() => {
@@ -139,7 +144,6 @@ export default function ChipsBaseApp() {
           filter: `id=eq.${currentOrderId}`,
         },
         (payload) => {
-          console.log("Live status updated from kitchen server:", payload.new.status);
           if (payload.new.status) {
             setLiveStatus(payload.new.status);
           }
@@ -168,7 +172,7 @@ export default function ChipsBaseApp() {
 
   const verifyUserLocation = () => {
     if (!navigator.geolocation) {
-      setLocError("Geolocation is not supported by your browser.");
+      setLocError("Geolocation services are unavailable.");
       return;
     }
 
@@ -193,7 +197,7 @@ export default function ChipsBaseApp() {
       },
       (error) => {
         setCheckingLocation(false);
-        setLocError("Please allow location access so we can verify the zone.");
+        setLocError("Please allow access to location to view the restaurant menu.");
         console.error(error);
       },
       { enableHighAccuracy: true }
@@ -232,6 +236,9 @@ export default function ChipsBaseApp() {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     const orderItemsText = Object.entries(cart)
       .map(([id, quantity]) => {
         const item = MENU_ITEMS.find((m) => m.id === Number(id));
@@ -258,43 +265,47 @@ export default function ChipsBaseApp() {
         .select();
 
       if (error) {
-        console.error("Database Write Error:", error.message);
-        alert("Could not connect to the database. Please try again.");
+        alert("Slight network delay. Please submit your request once more.");
+        setIsSubmitting(false);
       } else if (data && data.length > 0) {
         setCurrentOrderId(data[0].id);
         setLiveStatus("Frying");
+        setFinalOrderTotal(totalPrice); // FIXED: Cache the price right before deleting the cart data
         setOrderPlaced(true);
         setShowCheckoutModal(false);
+        setCart({});
       }
     } catch (err) {
-      console.error("Execution error:", err);
+      console.error(err);
+      setIsSubmitting(false);
     }
   };
 
-  // --- SCREEN 1: LOCATION GATER ---
+  // --- SCREEN 1: LOCATION CONCEALER / LANDING ---
   if (locationVerified === null || (locationVerified === false && !isBypassed)) {
     return (
-      <div className="min-h-screen bg-[#FFFDF9] flex flex-col items-center justify-center p-4 text-center font-sans">
-        <div className="max-w-md w-full bg-white rounded-[2rem] p-8 shadow-xl border border-stone-100">
-          <div className="w-20 h-20 bg-[#FFC244]/10 text-4xl rounded-full flex items-center justify-center mx-auto mb-4">🍟</div>
-          <h1 className="text-2xl font-extrabold text-stone-900 mb-2 tracking-tight">The Town Chips Base</h1>
-          <p className="text-stone-500 text-sm mb-6 leading-relaxed">
-            We cook everything fresh! Online ordering is optimized for a <b className="text-stone-800">2 km radius</b> around Eldoret town center.
+      <div className="min-h-screen bg-[#FFFDF6] flex flex-col items-center justify-center p-6 text-center font-sans tracking-tight">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-gray-100">
+          
+          <div className="relative w-24 h-24 mx-auto mb-6 flex items-center justify-center bg-amber-50 rounded-full border border-amber-200 shadow-inner">
+            <span className="text-5xl select-none transform transition-transform duration-300 hover:rotate-12">🍟</span>
+            <span className="absolute top-2 right-2 text-base animate-bounce">✨</span>
+          </div>
+
+          <h1 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">CZAR HOUSE</h1>
+          <p className="text-gray-500 text-sm px-4 mb-8 leading-relaxed">
+            Please share your location to discover menus available for quick delivery directly to your doorstep.
           </p>
 
           {locationVerified === false && distance !== null && (
-            <div className="mb-6 p-4 bg-rose-50 text-rose-900 rounded-2xl text-sm text-left space-y-3 border border-rose-100">
-              <p className="font-bold text-center text-rose-700">
-                ⚠️ Distance: ~{distance.toFixed(1)} km (Outside Zone)
-              </p>
-              <p className="text-xs text-rose-600 leading-relaxed font-medium">
-                If you are ordering a delivery for a friend or an office located <b>inside town</b>, you can proceed by bypassing this gate.
-              </p>
+            <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl text-xs text-left border border-red-100 space-y-1 text-center">
+              <p className="font-bold uppercase tracking-wider text-red-800">Outside Delivery Radius</p>
+              <p className="text-gray-600 font-light">You are currently {distance.toFixed(1)} km away. Our immediate delivery radius is capped at 30 km.</p>
             </div>
           )}
 
           {locError && (
-            <div className="mb-4 p-3.5 bg-amber-50 text-amber-900 rounded-xl text-xs border border-amber-100 font-medium">
+            <div className="mb-4 p-3 bg-amber-50 text-amber-800 rounded-xl text-xs border border-amber-100">
               {locError}
             </div>
           )}
@@ -303,27 +314,17 @@ export default function ChipsBaseApp() {
             <button
               onClick={verifyUserLocation}
               disabled={checkingLocation}
-              className="w-full bg-[#00A082] hover:bg-[#008A70] active:scale-[0.99] transition text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-700/20 disabled:bg-stone-300 disabled:shadow-none"
+              className="w-full bg-[#FFC014] hover:bg-[#e6ac10] active:scale-[0.99] text-gray-950 font-bold py-4 rounded-full text-sm tracking-wide shadow-md transition-all disabled:bg-gray-200 disabled:text-gray-400"
             >
-              {checkingLocation ? "Verifying Distance..." : "Confirm Delivery Location"}
+              {checkingLocation ? "Checking location..." : "Share Current Location"}
             </button>
 
             {locationVerified === false && (
               <button
                 onClick={handleBypass}
-                className="w-full bg-stone-50 hover:bg-stone-100 text-stone-600 font-semibold py-3.5 rounded-xl text-xs transition border border-stone-200"
+                className="w-full bg-transparent hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-full text-xs transition border border-gray-200 tracking-wide"
               >
-                🤝 Ordering for someone inside town
-              </button>
-            )}
-
-            {/* Injected Local Testing Mode Bypass Button */}
-            {isDevelopmentEnvironment && (
-              <button
-                onClick={handleBypass}
-                className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-3.5 rounded-xl text-xs transition shadow-md active:scale-[0.99]"
-              >
-                🛠️ Dev Testing Mode: Skip Location Gate
+                Request Manual Sub-Town Delivery
               </button>
             )}
           </div>
@@ -332,181 +333,202 @@ export default function ChipsBaseApp() {
     );
   }
 
-  // --- SCREEN 2: ORDER SUCCESS ---
+  // --- SCREEN 2: ORDER PROGRESS / TRACKING SCREEN ---
   if (orderPlaced) {
     return (
-      <div className="min-h-screen bg-[#FFFDF9] flex flex-col items-center justify-center p-4 font-sans">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] p-8 shadow-xl border border-stone-100 text-center">
+      <div className="min-h-screen bg-[#FFFDF6] flex flex-col items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-gray-100 text-center">
           
-          <div className="w-24 h-24 bg-stone-50 border border-stone-100 text-5xl rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
+          <div className="w-20 h-20 bg-amber-50 text-3xl rounded-full flex items-center justify-center mx-auto mb-6 border border-amber-100">
             {(liveStatus === "Frying" || liveStatus === "Pending") && "🍳"}
-            {(liveStatus === "Transit" || liveStatus === "Out for Delivery") && "🚴"}
-            {liveStatus === "Delivered" && "🎉"}
+            {(liveStatus === "Transit" || liveStatus === "Out for Delivery") && "🛵"}
+            {liveStatus === "Delivered" && "✅"}
           </div>
 
-          <h1 className="text-2xl font-black text-stone-900 mb-1 tracking-tight">
+          <h1 className="text-xl font-black text-gray-900 tracking-tight uppercase">
             {(liveStatus === "Frying" || liveStatus === "Pending") && "Preparing Your Order"}
-            {(liveStatus === "Transit" || liveStatus === "Out for Delivery") && "Out for Delivery"}
-            {liveStatus === "Delivered" && "Enjoy Your Meal!"}
+            {(liveStatus === "Transit" || liveStatus === "Out for Delivery") && "In Transit"}
+            {liveStatus === "Delivered" && "Order Delivered"}
           </h1>
           
-          <p className="text-stone-400 text-xs mb-8 font-medium">
-            Order Tracking Code: <span className="font-mono font-bold text-stone-600">#{currentOrderId}</span>
+          <p className="text-gray-500 text-xs mt-1 mb-8">
+            Order Reference: <span className="text-gray-900 font-bold font-mono">#{currentOrderId}</span>
           </p>
 
-          {/* --- GLOVO STATUS PROGRESS STEPPER --- */}
-          <div className="w-full px-2 mb-8 relative">
+          {/* Stepper */}
+          <div className="w-full px-4 mb-8 relative">
             <div className="flex justify-between items-center relative z-10">
-              
-              <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${
-                  liveStatus === "Frying" || liveStatus === "Pending" || liveStatus === "Transit" || liveStatus === "Out for Delivery" || liveStatus === "Delivered"
-                    ? "bg-[#00A082] text-white ring-4 ring-emerald-100"
-                    : "bg-stone-200 text-stone-400"
-                }`}>
-                  1
-                </div>
-                <span className="text-[10px] font-black mt-2 text-stone-600 uppercase tracking-wide">Frying</span>
-              </div>
-
-              <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${
-                  liveStatus === "Transit" || liveStatus === "Out for Delivery" || liveStatus === "Delivered"
-                    ? "bg-[#00A082] text-white ring-4 ring-emerald-100"
-                    : "bg-stone-200 text-stone-400"
-                }`}>
-                  2
-                </div>
-                <span className="text-[10px] font-black mt-2 text-stone-600 uppercase tracking-wide">Transit</span>
-              </div>
-
-              <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${
-                  liveStatus === "Delivered"
-                    ? "bg-blue-600 text-white ring-4 ring-blue-100"
-                    : "bg-stone-200 text-stone-400"
-                }`}>
-                  3
-                </div>
-                <span className="text-[10px] font-black mt-2 text-stone-600 uppercase tracking-wide">Arrived</span>
-              </div>
-
+              {["Kitchen", "Transit", "Arrived"].map((stepName, idx) => {
+                const isActive = 
+                  (idx === 0) || 
+                  (idx === 1 && (liveStatus === "Transit" || liveStatus === "Out for Delivery" || liveStatus === "Delivered")) ||
+                  (idx === 2 && liveStatus === "Delivered");
+                return (
+                  <div key={stepName} className="flex flex-col items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all duration-500 font-bold ${
+                      isActive 
+                        ? "bg-[#FFC014] text-gray-950 shadow-sm" 
+                        : "bg-gray-100 text-gray-400"
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <span className="text-[10px] font-bold mt-2 text-gray-500 uppercase tracking-wide">{stepName}</span>
+                  </div>
+                );
+              })}
             </div>
-
-            <div className="absolute top-4 left-8 right-8 h-1 bg-stone-100 -z-0 rounded-full">
+            <div className="absolute top-4 left-10 right-10 h-1 bg-gray-100 -z-0">
               <div 
-                className="h-full bg-[#00A082] transition-all duration-500 rounded-full"
+                className="h-full bg-[#FFC014] transition-all duration-500"
                 style={{
-                  width: (liveStatus === "Frying" || liveStatus === "Pending") 
-                    ? "10%" 
-                    : (liveStatus === "Transit" || liveStatus === "Out for Delivery") 
-                      ? "50%" 
-                      : "100%",
-                  backgroundColor: liveStatus === "Delivered" ? "#2563eb" : "#00A082"
+                  width: (liveStatus === "Frying" || liveStatus === "Pending") ? "0%" : (liveStatus === "Transit" || liveStatus === "Out for Delivery") ? "50%" : "100%"
                 }}
               />
             </div>
           </div>
 
-          <div className="text-left bg-stone-50 border border-stone-100 rounded-2xl p-4 text-stone-700 text-xs space-y-2.5 mb-6">
-            <div><span className="text-stone-400 font-medium">Deliver To:</span> <b className="text-stone-900">{customerInfo.name}</b></div>
-            <div><span className="text-stone-400 font-medium">Phone Number:</span> <b className="text-stone-900">{customerInfo.phone}</b></div>
-            <div><span className="text-stone-400 font-medium">Drop Address:</span> <b className="text-stone-900 leading-relaxed">{customerInfo.address}</b></div>
+          <div className="text-left bg-gray-50 border border-gray-100 rounded-2xl p-5 text-gray-700 text-xs space-y-3 mb-8">
+            <div className="flex justify-between"><span className="text-gray-400 font-medium">Customer:</span> <b className="text-gray-900 font-bold">{customerInfo.name}</b></div>
+            <div className="flex justify-between"><span className="text-gray-400 font-medium">Phone:</span> <b className="text-gray-900 font-mono">{customerInfo.phone}</b></div>
+            <div className="flex justify-between items-start gap-4"><span className="text-gray-400 font-medium whitespace-nowrap">Deliver To:</span> <b className="text-gray-900 text-right leading-snug">{customerInfo.address}</b></div>
             
-            <div className="pt-2.5 border-t border-stone-200/60 flex items-center justify-between font-bold text-stone-900">
-              <span className="flex items-center gap-1.5">
-                <span className={`inline-block w-2 h-2 rounded-full ${liveStatus === "Delivered" ? "bg-blue-500" : "bg-emerald-500 animate-pulse"}`} />
-                Cash Due on Arrival:
-              </span>
-              <span className={`text-base font-black ${liveStatus === "Delivered" ? "text-blue-600" : "text-[#00A082]"}`}>
-                Ksh {getCartTotal()}
-              </span>
+            <div className="pt-3.5 border-t border-gray-200 flex items-center justify-between text-gray-900">
+              <span className="text-xs text-gray-500 font-medium">Total Price</span>
+              {/* FIXED: Now reads from the cached final total instead of looking inside an empty cart object */}
+              <span className="text-base font-black text-gray-900 font-mono">Ksh {finalOrderTotal}</span>
             </div>
           </div>
 
           <button 
-            onClick={() => { setOrderPlaced(false); setCart({}); setIsBypassed(false); setLocationVerified(null); setCurrentOrderId(null); setIdNumber(""); }} 
-            className="w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-4 rounded-xl text-sm transition shadow-md active:scale-[0.99]"
+            onClick={() => { setOrderPlaced(false); setCart({}); setIsBypassed(false); setLocationVerified(null); setCurrentOrderId(null); setFinalOrderTotal(0); }}
+            className="w-full bg-[#FFC014] hover:bg-[#e6ac10] text-gray-950 text-sm font-bold py-4 rounded-full transition-all shadow-sm"
           >
-            Order Something Else
+            Go Back To Menu
           </button>
         </div>
       </div>
     );
   }
 
-  // --- SCREEN 3: GLOBAL STOREFRONT ---
+  // --- SCREEN 3: MAIN MENU DASHBOARD ---
   return (
-    <div className="min-h-screen bg-[#FFFDF9] text-stone-900 font-sans pb-28">
-      {isBypassed && (
-        <div className="bg-amber-500 text-white text-xs font-bold px-4 py-2.5 text-center tracking-wide sticky top-0 z-40 shadow-sm">
-          ⚠️ Override Active: Delivery point must be near the town circle!
-        </div>
-      )}
-
-      <div className="bg-[#00A082] text-white pt-8 pb-14 px-4 relative rounded-b-[2.5rem] shadow-md">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div>
-            <span className="bg-[#FFC244] text-stone-950 font-black text-[10px] uppercase px-2 py-0.5 rounded-full tracking-wider">Store Open</span>
-            <h1 className="text-3xl font-black mt-1 tracking-tight">The Chips Base</h1>
-            <p className="text-emerald-100 text-xs font-medium mt-0.5">🚀 Delivered hot under 20 mins</p>
+    <div className="min-h-screen bg-white text-gray-900 font-sans pb-36">
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-100 px-6 py-6 shadow-sm">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-6">
+          
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-black tracking-tight text-gray-900 uppercase">
+                CZAR HOUSE
+              </h1>
+              <span className="bg-[#23A158] text-white px-2.5 py-0.5 rounded-full text-[10px] tracking-wide font-bold uppercase">
+                Open
+              </span>
+            </div>
+            <p className="text-gray-500 text-xs md:text-sm max-w-xl font-normal leading-relaxed">
+              ⚡ Delivered hot and fresh.
+            </p>
           </div>
-          <div className="text-4xl bg-white/10 p-3 rounded-2xl backdrop-blur-sm">🍟</div>
-        </div>
-      </div>
 
-      <div className="max-w-md mx-auto px-4 -mt-6 relative z-10">
-        <div className="bg-white flex space-x-2 p-1.5 rounded-2xl shadow-md border border-stone-100 mb-6 overflow-x-auto scrollbar-none sticky top-3">
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="h-16 w-16 rounded-2xl overflow-hidden shadow-sm bg-gray-100 hidden sm:block">
+              <img 
+                src="https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500&auto=format&fit=crop&q=60" 
+                alt="Czar House Chips" 
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <button 
+              onClick={() => setShowCartDrawer(true)}
+              className="relative bg-[#FFC014] p-3.5 rounded-full text-gray-950 hover:bg-[#e6ac10] transition-all flex items-center justify-center shadow-md"
+            >
+              <span className="text-xl">🛒</span>
+              {getCartCount() > 0 && (
+                <span className="absolute -top-1 -right-1 bg-gray-900 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
+                  {getCartCount()}
+                </span>
+              )}
+            </button>
+          </div>
+
+        </div>
+      </header>
+
+      {/* Categories Tabs */}
+      <div className="max-w-5xl mx-auto px-6 mt-8">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
           {["Meals", "Sides", "Drinks"].map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                activeCategory === cat 
-                  ? "bg-[#FFC244] text-stone-900 shadow-sm" 
-                  : "text-stone-500 hover:bg-stone-50"
+              className={`px-6 py-2.5 rounded-full text-xs font-bold tracking-wide transition-all shrink-0 ${
+                activeCategory === cat
+                  ? "bg-[#FFF8E6] text-[#E6A100] border-2 border-[#FFC014]"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-transparent"
               }`}
             >
               {cat}
             </button>
           ))}
         </div>
+      </div>
 
-        <div className="space-y-3.5">
-          {MENU_ITEMS.filter(item => item.category === activeCategory).map((item) => (
-            <div key={item.id} className="bg-white p-3.5 rounded-3xl shadow-sm border border-stone-100 flex items-center justify-between gap-4 transition hover:shadow-md">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-stone-900 text-base truncate">{item.name}</h3>
-                  {item.requiresId && (
-                    <span className="bg-red-100 text-red-700 font-extrabold text-[9px] px-1.5 py-0.5 rounded-md flex-shrink-0">🔞 18+</span>
-                  )}
+      {/* Grid List */}
+      <div className="px-6 mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
+        {MENU_ITEMS.filter((item) => item.category === activeCategory).map((item) => {
+          const quantity = cart[item.id] || 0;
+          return (
+            <div 
+              key={item.id} 
+              className="bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-md border border-gray-100 flex flex-col justify-between transition-all duration-200"
+            >
+              <div className="relative h-48 w-full bg-gray-50 overflow-hidden">
+                <div className="absolute top-3 left-3 z-10 bg-white/90 backdrop-blur-sm px-2.5 py-0.5 rounded-full text-[10px] font-bold text-gray-800 shadow-sm">
+                  {item.tag}
                 </div>
-                <p className="text-xs text-stone-400 mt-1 leading-snug line-clamp-2 pr-2">{item.desc}</p>
-                <div className="text-base font-black text-[#00A082] mt-2.5">Ksh {item.price}</div>
-              </div>
-              
-              <div className="relative w-24 h-24 bg-stone-50 rounded-2xl overflow-hidden flex-shrink-0 border border-stone-100">
                 <img 
                   src={item.image} 
-                  alt={item.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
+                  alt={item.name} 
+                  className="w-full h-full object-cover" 
                 />
-                
-                <div className="absolute bottom-1 left-1 right-1 flex justify-center">
-                  {cart[item.id] ? (
-                    <div className="bg-white text-stone-900 rounded-full shadow-lg border border-stone-200 flex items-center justify-between px-1.5 py-1 w-full max-w-[84px]">
-                      <button onClick={() => removeFromCart(item.id)} className="w-5 h-5 rounded-full bg-stone-100 font-bold text-xs flex items-center justify-center text-stone-700 active:scale-95">-</button>
-                      <span className="font-extrabold text-xs">{cart[item.id]}</span>
-                      <button onClick={() => addToCart(item.id)} className="w-5 h-5 rounded-full bg-[#FFC244] text-stone-900 font-bold text-xs flex items-center justify-center active:scale-95">+</button>
+              </div>
+
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-gray-900 tracking-tight">
+                    {item.name}
+                  </h3>
+                  <p className="text-gray-500 text-xs leading-relaxed font-normal min-h-[36px]">
+                    {item.desc}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                  <span className="text-base text-gray-900 font-extrabold font-mono">
+                    Ksh {item.price}
+                  </span>
+
+                  {quantity > 0 ? (
+                    <div className="flex items-center bg-[#FFC014] rounded-full p-0.5 shadow-sm">
+                      <button 
+                        onClick={() => removeFromCart(item.id)}
+                        className="px-2.5 py-1 text-gray-950 hover:opacity-70 text-xs font-bold transition"
+                      >
+                        —
+                      </button>
+                      <span className="px-1.5 font-mono text-xs font-extrabold text-gray-950">{quantity}</span>
+                      <button 
+                        onClick={() => addToCart(item.id)}
+                        className="px-2.5 py-1 text-gray-950 hover:opacity-70 text-xs font-bold transition"
+                      >
+                        +
+                      </button>
                     </div>
                   ) : (
-                    <button 
-                      onClick={() => addToCart(item.id)} 
-                      className="bg-white hover:bg-stone-50 text-[#00A082] text-xs font-black px-3 py-1.5 rounded-full shadow-md border border-stone-100 flex items-center gap-1 active:scale-95 transition"
+                    <button
+                      onClick={() => addToCart(item.id)}
+                      className="bg-gray-100 hover:bg-[#FFC014] text-gray-900 font-bold text-xs px-4 py-2 rounded-full transition-all flex items-center gap-1"
                     >
                       <span>+</span> Add
                     </button>
@@ -514,121 +536,153 @@ export default function ChipsBaseApp() {
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      {getCartCount() > 0 && !showCheckoutModal && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#FFFDF9] via-[#FFFDF9] to-transparent z-40">
-          <button 
+      {/* Floating Checkout Bar */}
+      {getCartCount() > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 p-5 bg-white border-t border-gray-100 z-30 flex justify-center shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+          <button
             onClick={() => setShowCheckoutModal(true)}
-            className="max-w-md mx-auto w-full bg-[#00A082] hover:bg-[#008A70] text-white font-bold p-4 rounded-2xl shadow-xl flex items-center justify-between transition active:scale-[0.99]"
+            className="w-full max-w-md bg-[#FFC014] hover:bg-[#e6ac10] text-gray-950 font-bold text-sm py-4 rounded-full shadow-md flex items-center justify-between px-6 transition-all"
           >
-            <div className="flex items-center gap-3">
-              <span className="bg-[#FFC244] text-stone-950 font-black text-xs w-6 h-6 rounded-full flex items-center justify-center shadow-inner">
-                {getCartCount()}
-              </span>
-              <span className="text-sm tracking-wide font-extrabold">View Basket</span>
-            </div>
-            <span className="text-base font-black">Ksh {getCartTotal()}</span>
+            <span>View Order Bag</span>
+            <span className="bg-gray-900 text-white px-3 py-1 rounded-full font-extrabold font-mono text-xs">Ksh {getCartTotal()}</span>
           </button>
         </div>
       )}
 
-      {showCheckoutModal && (
-        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs flex items-end justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl border-t border-stone-100 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-5 pb-2 border-b border-stone-100">
-              <div>
-                <h2 className="text-xl font-black text-stone-900">Your Basket</h2>
-                <p className="text-xs text-stone-400 mt-0.5">Complete delivery location</p>
+      {/* BASKET DRAWER */}
+      {showCartDrawer && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex justify-end">
+          <div className="w-full max-w-md bg-white text-gray-900 h-full shadow-2xl p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center pb-5 border-b border-gray-100">
+                <h2 className="text-base font-bold text-gray-900">Your Basket</h2>
+                <button onClick={() => setShowCartDrawer(false)} className="text-gray-400 hover:text-gray-600 text-xs font-bold uppercase">Close</button>
               </div>
-              <button 
-                onClick={() => setShowCheckoutModal(false)}
-                className="w-8 h-8 rounded-full bg-stone-100 text-stone-500 font-bold flex items-center justify-center hover:bg-stone-200 text-sm"
-              >
-                ✕
-              </button>
+
+              {getCartCount() === 0 ? (
+                <p className="text-gray-400 text-xs font-normal text-center py-20 italic">Your cart is empty.</p>
+              ) : (
+                <div className="divide-y divide-gray-50 overflow-y-auto max-h-[65vh] pr-1 mt-2">
+                  {Object.entries(cart).map(([id, qty]) => {
+                    const item = MENU_ITEMS.find((m) => m.id === Number(id));
+                    if (!item) return null;
+                    return (
+                      <div key={item.id} className="py-4 flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <h4 className="text-sm font-bold text-gray-900">{item.name}</h4>
+                          <span className="text-xs font-mono font-semibold text-gray-500">Ksh {item.price * qty}</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-full">
+                          <button onClick={() => removeFromCart(item.id)} className="px-2 text-gray-600 font-bold text-xs">—</button>
+                          <span className="text-xs font-mono font-bold text-gray-900 px-1">{qty}</span>
+                          <button onClick={() => addToCart(item.id)} className="px-2 text-gray-600 font-bold text-xs">+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            <div className="space-y-3 mb-6 max-h-40 overflow-y-auto pr-1">
-              {Object.entries(cart).map(([id, qty]) => {
-                const item = MENU_ITEMS.find(m => m.id === Number(id));
-                if (!item || qty <= 0) return null;
-                return (
-                  <div key={id} className="flex justify-between items-center text-sm bg-stone-50 p-2.5 rounded-xl">
-                    <span className="font-semibold text-stone-800">{qty}x {item.name}</span>
-                    <span className="font-bold text-stone-900">Ksh {item.price * qty}</span>
-                  </div>
-                );
-              })}
-            </div>
+            {getCartCount() > 0 && (
+              <div className="pt-5 border-t border-gray-100 space-y-4">
+                <div className="flex justify-between text-gray-900 text-sm font-bold">
+                  <span>Total Bill:</span>
+                  <span className="text-gray-900 font-mono text-base">Ksh {getCartTotal()}</span>
+                </div>
+                <button
+                  onClick={() => { setShowCartDrawer(false); setShowCheckoutModal(true); }}
+                  className="w-full bg-[#FFC014] text-gray-950 text-sm font-bold py-4 rounded-full text-center block hover:bg-[#e6ac10] transition shadow-sm"
+                >
+                  Go to Checkout
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-            <form onSubmit={handleCheckout} className="space-y-4">
+      {/* CHECKOUT MODAL FORM */}
+      {showCheckoutModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white text-gray-900 rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-gray-100">
+            <h2 className="text-lg font-black text-center text-gray-900 tracking-tight mb-6">Delivery Details</h2>
+            
+            <form onSubmit={handleCheckout} className="space-y-4 text-xs">
               <div>
-                <label className="block text-xs font-bold text-stone-500 mb-1.5 uppercase tracking-wider">Recipient's Name</label>
+                <label className="block text-gray-500 font-bold uppercase tracking-wider text-[10px] mb-1">Your Full Name</label>
                 <input 
                   type="text" 
                   required
-                  placeholder="Who is picking up the food?"
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3.5 text-sm focus:outline-none focus:border-[#00A082] focus:bg-white transition" 
+                  placeholder="e.g., John Doe"
                   value={customerInfo.name}
-                  onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
+                  onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FFC014] text-sm"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-bold text-stone-500 mb-1.5 uppercase tracking-wider">M-Pesa / Phone Number</label>
+                <label className="block text-gray-500 font-bold uppercase tracking-wider text-[10px] mb-1">Phone Number</label>
                 <input 
-                  type="text" 
+                  type="tel" 
                   required
                   placeholder="e.g., 0712345678"
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3.5 text-sm focus:outline-none focus:border-[#00A082] focus:bg-white transition" 
                   value={customerInfo.phone}
-                  onChange={(e) => setCustomerInfo({...customerInfo, phone: e.target.value})}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-stone-500 mb-1.5 uppercase tracking-wider">Delivery Address (Eldoret Town Zone)</label>
-                <textarea 
-                  rows={2}
-                  required
-                  placeholder="e.g., Zion Mall, Ground Floor, Stall G12"
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl p-3.5 text-sm focus:outline-none focus:border-[#00A082] focus:bg-white transition resize-none" 
-                  value={customerInfo.address}
-                  onChange={(e) => setCustomerInfo({...customerInfo, address: e.target.value})}
+                  onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FFC014] text-sm font-mono"
                 />
               </div>
 
-              {/* Conditional age restriction checkpoint block */}
+              <div>
+                <label className="block text-gray-500 font-bold uppercase tracking-wider text-[10px] mb-1">Delivery Address</label>
+                <textarea 
+                  required
+                  rows={2}
+                  placeholder="Apartment, building, house number or estate directions..."
+                  value={customerInfo.address}
+                  onChange={(e) => setCustomerInfo({ ...customerInfo, address: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#FFC014] text-sm resize-none"
+                />
+              </div>
+
               {needsIdVerification && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl animate-fade-in">
-                  <label className="block text-xs font-black text-red-700 mb-1.5 uppercase tracking-wider">
-                    🔞 National ID Number (Required for Age Verification)
-                  </label>
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-2">
+                  <label className="block text-amber-900 font-bold text-xs">National ID Number</label>
                   <input 
                     type="text" 
                     required={needsIdVerification}
-                    placeholder="Enter ID card number"
-                    className="w-full bg-white border border-red-200 rounded-xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 font-bold tracking-wide" 
+                    placeholder="Enter ID for verification"
                     value={idNumber}
                     onChange={(e) => setIdNumber(e.target.value)}
+                    className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none text-sm"
                   />
-                  <p className="text-[10px] text-red-600 font-medium mt-1.5 leading-relaxed">
-                    Orders containing alcohol require a matching physical ID confirmation upon delivery hand-off.
-                  </p>
                 </div>
               )}
 
-              <div className="pt-4 border-t border-stone-100 flex items-center justify-between gap-4 mt-6">
-                <div>
-                  <span className="text-xs text-stone-400 block font-medium uppercase tracking-wider">Final Total</span>
-                  <span className="text-2xl font-black text-stone-900">Ksh {getCartTotal()}</span>
-                </div>
-                <button 
-                  type="submit"
-                  className="flex-1 bg-[#00A082] hover:bg-[#008A70] text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-800/10 text-sm tracking-wide text-center"
+              <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-gray-900 font-bold text-sm">
+                <span>Total Amount:</span>
+                <span className="text-xl font-black font-mono">Ksh {getCartTotal()}</span>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setShowCheckoutModal(false)}
+                  className="w-1/3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3.5 rounded-full transition text-xs disabled:opacity-50"
                 >
-                  Confirm Order
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-2/3 bg-[#FFC014] hover:bg-[#e6ac10] text-gray-950 font-bold py-3.5 rounded-full transition shadow-sm text-xs disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? "Confirming Order..." : "Confirm Order"}
                 </button>
               </div>
             </form>

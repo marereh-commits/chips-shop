@@ -48,10 +48,10 @@ export default function KitchenDashboard() {
       if (error) throw error;
       if (data) setOrders(data);
     } catch (err) {
-    console.error("Error fetching kitchen data:", err);
-  } finally {
-    setLoading(false);
-  }
+      console.error("Error fetching kitchen data:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateOrderStatus = async (orderId: number, nextStatus: string) => {
@@ -118,11 +118,11 @@ export default function KitchenDashboard() {
                     <h3 className="font-extrabold text-white text-lg tracking-tight mt-0.5">{order.name}</h3>
                   </div>
                   <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider border transition-colors ${
-                    order.status === "Frying" || order.status === "Pending"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
-                      : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    order.status === "Transit"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                   }`}>
-                    {order.status === "Frying" || order.status === "Pending" ? "🔥 Frying" : "🚴 Transit"}
+                    {order.status === "Transit" ? "🚴 Transit" : "🔥 Frying"}
                   </span>
                 </div>
 
@@ -146,7 +146,7 @@ export default function KitchenDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {(order.status === "Frying" || order.status === "Pending") && (
+                  {order.status !== "Transit" && (
                     <button
                       onClick={() => updateOrderStatus(order.id, "Transit")}
                       className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition active:scale-95 flex items-center gap-1 shadow-md"
