@@ -4,10 +4,6 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 
 // --- CONFIGURATION ---
-const SHOP_LAT = 0.1833; // Ugunja Town Center
-const SHOP_LON = 34.2986;
-const MAX_RADIUS_KM = 30.0;
-
 const MENU_ITEMS = [
   { 
     id: 1, 
@@ -72,12 +68,9 @@ const MENU_ITEMS = [
 ];
 
 export default function ChipsBaseApp() {
-  // Location States
-  const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
-  const [checkingLocation, setCheckingLocation] = useState(false);
-  const [distance, setDistance] = useState<number | null>(null);
-  const [locError, setLocError] = useState<string | null>(null);
-  const [isBypassed, setIsBypassed] = useState(false);
+  // Intro gate states
+  const [showIntro, setShowIntro] = useState(true);
+  const [lampOn, setLampOn] = useState(false);
 
   // Store Operational Hours State
   const [isOpen, setIsOpen] = useState(false);
@@ -98,7 +91,7 @@ export default function ChipsBaseApp() {
   const [currentOrderId, setCurrentOrderId] = useState<number | null>(null);
   const [liveStatus, setLiveStatus] = useState<string>("Frying");
   
-  // FIXED: New state to preserve the accurate total price after checkout resets the basket
+  // State to preserve total price after checkout reset
   const [finalOrderTotal, setFinalOrderTotal] = useState<number>(0);
 
   const needsIdVerification = Object.entries(cart).some(([id, qty]) => {
@@ -114,8 +107,8 @@ export default function ChipsBaseApp() {
       const minutes = now.getMinutes();
 
       const currentTimeInMinutes = hours * 60 + minutes;
-      const openTimeInMinutes = 9 * 60 + 30;  // 9:30 AM
-      const closeTimeInMinutes = 20 * 60;     // 8:00 PM
+      const openTimeInMinutes = 9 * 60 + 30;
+      const closeTimeInMinutes = 20 * 60;
 
       if (currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes) {
         setIsOpen(true);
@@ -156,59 +149,6 @@ export default function ChipsBaseApp() {
     };
   }, [currentOrderId]);
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  const verifyUserLocation = () => {
-    if (!navigator.geolocation) {
-      setLocError("Geolocation services are unavailable.");
-      return;
-    }
-
-    setCheckingLocation(true);
-    setLocError(null);
-    setIsBypassed(false);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const userLat = position.coords.latitude;
-        const userLon = position.coords.longitude;
-        const dist = calculateDistance(SHOP_LAT, SHOP_LON, userLat, userLon);
-        
-        setDistance(dist);
-        setCheckingLocation(false);
-
-        if (dist <= MAX_RADIUS_KM) {
-          setLocationVerified(true);
-        } else {
-          setLocationVerified(false);
-        }
-      },
-      (error) => {
-        setCheckingLocation(false);
-        setLocError("Please allow access to location to view the restaurant menu.");
-        console.error(error);
-      },
-      { enableHighAccuracy: true }
-    );
-  };
-
-  const handleBypass = () => {
-    setIsBypassed(true);
-    setLocationVerified(true);
-  };
-
   const addToCart = (id: number) => {
     setCart((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
   };
@@ -235,8 +175,13 @@ export default function ChipsBaseApp() {
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (isSubmitting) return;
+
+    if (needsIdVerification && !idNumber.trim()) {
+      alert("This order contains regulated items. Please input your National ID to check out.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const orderItemsText = Object.entries(cart)
@@ -259,7 +204,8 @@ export default function ChipsBaseApp() {
             address: customerInfo.address,
             items: orderItemsText,
             totalprice: totalPrice,
-            status: "Frying"
+            status: "Frying",
+            ...(needsIdVerification ? { id_number: idNumber.trim() } : {})
           }
         ])
         .select();
@@ -270,10 +216,11 @@ export default function ChipsBaseApp() {
       } else if (data && data.length > 0) {
         setCurrentOrderId(data[0].id);
         setLiveStatus("Frying");
-        setFinalOrderTotal(totalPrice); // FIXED: Cache the price right before deleting the cart data
+        setFinalOrderTotal(totalPrice); 
         setOrderPlaced(true);
         setShowCheckoutModal(false);
         setCart({});
+        setIdNumber("");
       }
     } catch (err) {
       console.error(err);
@@ -281,65 +228,108 @@ export default function ChipsBaseApp() {
     }
   };
 
-  // --- SCREEN 1: LOCATION CONCEALER / LANDING ---
-  if (locationVerified === null || (locationVerified === false && !isBypassed)) {
+  const handlePullCord = () => {
+    setLampOn(true);
+    setTimeout(() => {
+      setShowIntro(false);
+    }, 1400); 
+  };
+
+  // --- SCREEN 0: INTRO GATE WITH REALISTIC LIGHTBULB ---
+  if (showIntro) {
     return (
-      <div className="min-h-screen bg-[#FFFDF6] flex flex-col items-center justify-center p-6 text-center font-sans tracking-tight">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-gray-100">
+      <div className="min-h-screen bg-[#070a12] flex flex-col items-center justify-center relative overflow-hidden text-center select-none transition-colors duration-700">
+        
+        {/* Deep Ambient Ambient Light Cone Projection */}
+        <div 
+          className={`absolute top-0 left-1/2 -translate-x-1/2 w-[55rem] h-[45rem] bg-gradient-to-b from-amber-400/20 via-amber-500/5 to-transparent rounded-b-full blur-[90px] transition-all duration-700 pointer-events-none origin-top ${
+            lampOn ? "opacity-100 scale-100" : "opacity-0 scale-90"
+          }`} 
+        />
+
+        {/* High-Intensity Radial Glow Layer surrounding the bulb */}
+        <div 
+          className={`absolute top-40 left-1/2 -translate-x-1/2 w-80 h-80 bg-amber-400/30 rounded-full blur-3xl transition-opacity duration-300 pointer-events-none ${
+            lampOn ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        <div className="relative z-10 flex flex-col items-center h-[480px] justify-start">
           
-          <div className="relative w-24 h-24 mx-auto mb-6 flex items-center justify-center bg-amber-50 rounded-full border border-amber-200 shadow-inner">
-            <span className="text-5xl select-none transform transition-transform duration-300 hover:rotate-12">🍟</span>
-            <span className="absolute top-2 right-2 text-base animate-bounce">✨</span>
+          {/* Main Ceiling Heavy Cable */}
+          <div className="w-[3px] h-36 bg-gradient-to-b from-neutral-900 via-neutral-800 to-neutral-700 shadow-inner relative" />
+
+          {/* Textured Brass Socket Base Hardware */}
+          <div className="w-10 h-7 bg-gradient-to-r from-zinc-800 via-zinc-700 to-zinc-900 rounded-t-sm shadow-md border-b border-black flex flex-col items-center justify-end">
+            <div className="w-8 h-1.5 bg-zinc-600 border-b border-zinc-900" />
           </div>
 
-          <h1 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">CZAR HOUSE</h1>
-          <p className="text-gray-500 text-sm px-4 mb-8 leading-relaxed">
-            Please share your location to discover menus available for quick delivery directly to your doorstep.
-          </p>
-
-          {locationVerified === false && distance !== null && (
-            <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl text-xs text-left border border-red-100 space-y-1 text-center">
-              <p className="font-bold uppercase tracking-wider text-red-800">Outside Delivery Radius</p>
-              <p className="text-gray-600 font-light">You are currently {distance.toFixed(1)} km away. Our immediate delivery radius is capped at 30 km.</p>
-            </div>
-          )}
-
-          {locError && (
-            <div className="mb-4 p-3 bg-amber-50 text-amber-800 rounded-xl text-xs border border-amber-100">
-              {locError}
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <button
-              onClick={verifyUserLocation}
-              disabled={checkingLocation}
-              className="w-full bg-[#FFC014] hover:bg-[#e6ac10] active:scale-[0.99] text-gray-950 font-bold py-4 rounded-full text-sm tracking-wide shadow-md transition-all disabled:bg-gray-200 disabled:text-gray-400"
+          {/* Realistic Silhouette Glass Light Bulb */}
+          <div className="relative">
+            <div 
+              className={`w-16 h-20 rounded-b-full rounded-t-[75%] transition-all duration-300 border relative ${
+                lampOn 
+                  ? "bg-gradient-to-b from-amber-100 via-amber-300 to-amber-400 border-amber-200 shadow-[0_0_60px_rgba(251,191,36,0.9),inset_0_0_20px_rgba(255,255,255,0.7)]" 
+                  : "bg-gradient-to-b from-white/5 to-white/10 border-white/15 shadow-inner"
+              }`}
             >
-              {checkingLocation ? "Checking location..." : "Share Current Location"}
-            </button>
-
-            {locationVerified === false && (
-              <button
-                onClick={handleBypass}
-                className="w-full bg-transparent hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-full text-xs transition border border-gray-200 tracking-wide"
-              >
-                Request Manual Sub-Town Delivery
-              </button>
-            )}
+              {/* Internal Metal Filament Bracket */}
+              <div className={`absolute top-6 left-1/2 -translate-x-1/2 w-4 h-6 border-x transition-all duration-300 rounded-t-sm ${
+                lampOn 
+                  ? "border-amber-200 bg-amber-100 shadow-[0_0_15px_rgba(255,255,255,1)] scale-110" 
+                  : "border-neutral-600/40 bg-transparent opacity-35"
+              }`}>
+                {/* Micro Incandescent Filament Loop Glow */}
+                <div className={`w-2 h-2 mx-auto mt-0.5 rounded-full border-t-2 ${lampOn ? 'border-white animate-pulse' : 'border-neutral-700'}`} />
+              </div>
+            </div>
           </div>
+
+          {/* Interactive Mechanical Hanging Pull-Chain */}
+          <div className="absolute top-[182px] left-[calc(50%+22px)] flex flex-col items-center group">
+            {/* Beaded Ball Chain String Link */}
+            <div className="w-0.5 h-36 bg-repeat-y bg-center space-y-1 flex flex-col items-center justify-between pointer-events-none">
+              {[...Array(15)].map((_, i) => (
+                <div key={i} className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-zinc-400 to-zinc-600 shadow-xs border border-zinc-700/30" />
+              ))}
+            </div>
+
+            {/* Brass Bell Pull Knob Switch */}
+            <div 
+              onClick={handlePullCord}
+              className="w-4 h-6 bg-gradient-to-b from-amber-600 via-amber-500 to-amber-700 rounded-b-full rounded-t-xs cursor-pointer shadow-lg border border-amber-800 active:translate-y-3.5 transition-transform duration-100 flex items-center justify-center hover:brightness-110"
+              title="Pull to toggle light switch"
+            >
+              <div className="w-1.5 h-1.5 bg-amber-950 rounded-full mt-2 opacity-50" />
+            </div>
+          </div>
+
+          {/* Title Header Branding */}
+          <div className="mt-32 space-y-3 px-6 max-w-sm">
+            <h1 className={`text-4xl font-black tracking-widest uppercase transition-all duration-500 font-sans ${
+              lampOn 
+                ? "text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.6)] scale-102" 
+                : "text-zinc-700 tracking-wider"
+            }`}>
+              Czar House
+            </h1>
+            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">
+              {lampOn ? "Opening menu structure..." : "Pull the metal bell chain to begin"}
+            </p>
+          </div>
+
         </div>
       </div>
     );
   }
 
-  // --- SCREEN 2: ORDER PROGRESS / TRACKING SCREEN ---
+  // --- SCREEN 1: LIVE ORDER PROGRESS TRACKING SCREEN ---
   if (orderPlaced) {
     return (
       <div className="min-h-screen bg-[#FFFDF6] flex flex-col items-center justify-center p-6 font-sans">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-gray-100 text-center">
           
-          <div className="w-20 h-20 bg-amber-50 text-3xl rounded-full flex items-center justify-center mx-auto mb-6 border border-amber-100">
+          <div className="w-20 h-20 bg-amber-5 text-3xl rounded-full flex items-center justify-center mx-auto mb-6 border border-amber-100">
             {(liveStatus === "Frying" || liveStatus === "Pending") && "🍳"}
             {(liveStatus === "Transit" || liveStatus === "Out for Delivery") && "🛵"}
             {liveStatus === "Delivered" && "✅"}
@@ -355,7 +345,7 @@ export default function ChipsBaseApp() {
             Order Reference: <span className="text-gray-900 font-bold font-mono">#{currentOrderId}</span>
           </p>
 
-          {/* Stepper */}
+          {/* Progress Tracker Stepper */}
           <div className="w-full px-4 mb-8 relative">
             <div className="flex justify-between items-center relative z-10">
               {["Kitchen", "Transit", "Arrived"].map((stepName, idx) => {
@@ -394,13 +384,12 @@ export default function ChipsBaseApp() {
             
             <div className="pt-3.5 border-t border-gray-200 flex items-center justify-between text-gray-900">
               <span className="text-xs text-gray-500 font-medium">Total Price</span>
-              {/* FIXED: Now reads from the cached final total instead of looking inside an empty cart object */}
               <span className="text-base font-black text-gray-900 font-mono">Ksh {finalOrderTotal}</span>
             </div>
           </div>
 
           <button 
-            onClick={() => { setOrderPlaced(false); setCart({}); setIsBypassed(false); setLocationVerified(null); setCurrentOrderId(null); setFinalOrderTotal(0); }}
+            onClick={() => { setOrderPlaced(false); setCart({}); setCurrentOrderId(null); setFinalOrderTotal(0); }}
             className="w-full bg-[#FFC014] hover:bg-[#e6ac10] text-gray-950 text-sm font-bold py-4 rounded-full transition-all shadow-sm"
           >
             Go Back To Menu
@@ -410,7 +399,7 @@ export default function ChipsBaseApp() {
     );
   }
 
-  // --- SCREEN 3: MAIN MENU DASHBOARD ---
+  // --- SCREEN 2: MAIN CATALOGUE MENU ---
   return (
     <div className="min-h-screen bg-white text-gray-900 font-sans pb-36">
       <header className="sticky top-0 z-40 bg-white border-b border-gray-100 px-6 py-6 shadow-sm">
@@ -421,8 +410,10 @@ export default function ChipsBaseApp() {
               <h1 className="text-3xl font-black tracking-tight text-gray-900 uppercase">
                 CZAR HOUSE
               </h1>
-              <span className="bg-[#23A158] text-white px-2.5 py-0.5 rounded-full text-[10px] tracking-wide font-bold uppercase">
-                Open
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] tracking-wide font-bold uppercase ${
+                isOpen ? "bg-[#23A158] text-white" : "bg-gray-200 text-gray-600"
+              }`}>
+                {isOpen ? "Open" : "Closed"}
               </span>
             </div>
             <p className="text-gray-500 text-xs md:text-sm max-w-xl font-normal leading-relaxed">
@@ -455,7 +446,16 @@ export default function ChipsBaseApp() {
         </div>
       </header>
 
-      {/* Categories Tabs */}
+      {/* Operational Schedule Context Lock Notice */}
+      {!isOpen && (
+        <div className="max-w-5xl mx-auto px-6 mt-6">
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl px-5 py-3 text-xs text-gray-600 text-center">
+            We're currently closed. Orders are open daily from 9:30am to 8:00pm — browse the menu and come back when we reopen.
+          </div>
+        </div>
+      )}
+
+      {/* Categories Switch Tabs */}
       <div className="max-w-5xl mx-auto px-6 mt-8">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
           {["Meals", "Sides", "Drinks"].map((cat) => (
@@ -474,7 +474,7 @@ export default function ChipsBaseApp() {
         </div>
       </div>
 
-      {/* Grid List */}
+      {/* Items Showroom Grid */}
       <div className="px-6 mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
         {MENU_ITEMS.filter((item) => item.category === activeCategory).map((item) => {
           const quantity = cart[item.id] || 0;
@@ -540,20 +540,21 @@ export default function ChipsBaseApp() {
         })}
       </div>
 
-      {/* Floating Checkout Bar */}
+      {/* Floating Checkout Sticky Panel */}
       {getCartCount() > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-5 bg-white border-t border-gray-100 z-30 flex justify-center shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
           <button
-            onClick={() => setShowCheckoutModal(true)}
-            className="w-full max-w-md bg-[#FFC014] hover:bg-[#e6ac10] text-gray-950 font-bold text-sm py-4 rounded-full shadow-md flex items-center justify-between px-6 transition-all"
+            onClick={() => isOpen && setShowCheckoutModal(true)}
+            disabled={!isOpen}
+            className="w-full max-w-md bg-[#FFC014] hover:bg-[#e6ac10] text-gray-950 font-bold text-sm py-4 rounded-full shadow-md flex items-center justify-between px-6 transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
           >
-            <span>View Order Bag</span>
+            <span>{isOpen ? "View Order Bag" : "We're closed right now"}</span>
             <span className="bg-gray-900 text-white px-3 py-1 rounded-full font-extrabold font-mono text-xs">Ksh {getCartTotal()}</span>
           </button>
         </div>
       )}
 
-      {/* BASKET DRAWER */}
+      {/* BASKET DRAWER OVERLAY */}
       {showCartDrawer && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex justify-end">
           <div className="w-full max-w-md bg-white text-gray-900 h-full shadow-2xl p-6 flex flex-col justify-between">
@@ -595,10 +596,11 @@ export default function ChipsBaseApp() {
                   <span className="text-gray-900 font-mono text-base">Ksh {getCartTotal()}</span>
                 </div>
                 <button
-                  onClick={() => { setShowCartDrawer(false); setShowCheckoutModal(true); }}
-                  className="w-full bg-[#FFC014] text-gray-950 text-sm font-bold py-4 rounded-full text-center block hover:bg-[#e6ac10] transition shadow-sm"
+                  onClick={() => { if (isOpen) { setShowCartDrawer(false); setShowCheckoutModal(true); } }}
+                  disabled={!isOpen}
+                  className="w-full bg-[#FFC014] text-gray-950 text-sm font-bold py-4 rounded-full text-center block hover:bg-[#e6ac10] transition shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
                 >
-                  Go to Checkout
+                  {isOpen ? "Go to Checkout" : "We're closed right now"}
                 </button>
               </div>
             )}
@@ -606,7 +608,7 @@ export default function ChipsBaseApp() {
         </div>
       )}
 
-      {/* CHECKOUT MODAL FORM */}
+      {/* CHECKOUT MODAL MODIFIER SHEET */}
       {showCheckoutModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white text-gray-900 rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-gray-100">
