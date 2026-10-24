@@ -1,4 +1,3 @@
-// src/app/cashier/_components/CartCheckout.tsx
 "use client";
 
 import { Dispatch, SetStateAction, useState } from "react";
@@ -10,8 +9,13 @@ interface CartCheckoutProps {
   onOrderComplete: () => void;
 }
 
-export default function CartCheckout({ cart, setCart, onOrderComplete }: CartCheckoutProps) {
+export default function CartCheckout({
+  cart,
+  setCart,
+  onOrderComplete,
+}: CartCheckoutProps) {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "M-Pesa">("Cash");
+  const [tableNumber, setTableNumber] = useState("");
   const [loading, setLoading] = useState(false);
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -28,18 +32,21 @@ export default function CartCheckout({ cart, setCart, onOrderComplete }: CartChe
           items: cart,
           total_amount: total,
           payment_method: paymentMethod,
-          source: "walk-in",
+          table_number: tableNumber.trim() || null,
         }),
       });
 
       if (response.ok) {
         alert("Order successfully processed!");
+        setTableNumber("");
         onOrderComplete();
       } else {
-        alert("Failed to process order.");
+        const data = await response.json().catch(() => null);
+        alert(data?.error || "Failed to process order.");
       }
     } catch (err) {
       console.error(err);
+      alert("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -54,10 +61,15 @@ export default function CartCheckout({ cart, setCart, onOrderComplete }: CartChe
         ) : (
           <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
             {cart.map((item) => (
-              <div key={item.id} className="flex justify-between items-center text-sm">
+              <div
+                key={item.id}
+                className="flex justify-between items-center text-sm"
+              >
                 <div>
                   <p className="font-semibold">{item.name}</p>
-                  <p className="text-xs text-gray-500">KES {item.price} x {item.quantity}</p>
+                  <p className="text-xs text-gray-500">
+                    KES {item.price} x {item.quantity}
+                  </p>
                 </div>
                 <span className="font-bold">KES {item.price * item.quantity}</span>
               </div>
@@ -72,7 +84,21 @@ export default function CartCheckout({ cart, setCart, onOrderComplete }: CartChe
           <span className="text-amber-600">KES {total}</span>
         </div>
 
-        <p className="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">Payment Option</p>
+        <p className="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">
+          Table Number
+        </p>
+        <input
+          type="number"
+          min={1}
+          placeholder="Optional (leave empty for counter)"
+          value={tableNumber}
+          onChange={(e) => setTableNumber(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4 text-sm"
+        />
+
+        <p className="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">
+          Payment Option
+        </p>
         <div className="grid grid-cols-2 gap-2 mb-4">
           {(["Cash", "M-Pesa"] as const).map((method) => (
             <button

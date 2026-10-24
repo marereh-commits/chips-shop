@@ -147,7 +147,7 @@ export default function KitchenDashboard() {
     const counts: Record<string, number> = {};
     if (!itemsString) return counts;
 
-    const lines = itemsString.split("\n");
+    const lines = itemsString.split("/\n|,\s*/");
     lines.forEach((line) => {
       const match = line.match(/(\d+)\s*[xX]\s*(.+)/);
       if (match) {
@@ -392,7 +392,7 @@ export default function KitchenDashboard() {
                 <div className="bg-stone-950/60 border border-stone-800/40 rounded-2xl p-3 mb-4">
                   <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Kitchen Slip</p>
                   <p className="text-sm font-bold text-stone-200 tracking-wide leading-relaxed whitespace-pre-line">
-                    {order.items}
+                    {order.items?.replace(/,\s*/g, "\n")}
                   </p>
                 </div>
               </div>
