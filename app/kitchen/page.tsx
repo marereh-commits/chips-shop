@@ -12,6 +12,7 @@ interface Order {
   items: string;
   totalprice: number;
   status: string;
+  table_number?: string; // DINE-IN: set when the order came from a table QR code
 }
 
 interface StockItem {
@@ -101,8 +102,13 @@ export default function KitchenDashboard() {
 
       if (activeRes.data) setOrders(activeRes.data);
       if (completedRes.data) setCompletedOrders(completedRes.data);
-    } catch (err) {
-      console.error("Error fetching kitchen and analytics streams:", err);
+    } catch (err: any) {
+      console.error("Error fetching kitchen and analytics streams:", {
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint,
+      });
     } finally {
       setLoading(false);
     }
@@ -350,7 +356,15 @@ export default function KitchenDashboard() {
               <div>
                 <div className="flex justify-between items-start gap-2 mb-3">
                   <div>
-                    <span className="text-[10px] font-mono text-stone-500 tracking-wider">ORDER #{order.id}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-stone-500 tracking-wider">ORDER #{order.id}</span>
+                      {/* DINE-IN: table badge */}
+                      {order.table_number && (
+                        <span className="text-[10px] font-black uppercase bg-amber-500 text-stone-950 px-2 py-0.5 rounded-md">
+                          Table {order.table_number}
+                        </span>
+                      )}
+                    </div>
                     <h3 className="font-extrabold text-white text-lg tracking-tight mt-0.5">{order.name}</h3>
                   </div>
                   <span
@@ -360,7 +374,9 @@ export default function KitchenDashboard() {
                         : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                     }`}
                   >
-                    {order.status === "Transit" ? "🚴 Transit" : "🔥 Frying"}
+                    {order.status === "Transit"
+                      ? order.table_number ? "🍽️ Serving" : "🚴 Transit"
+                      : "🔥 Frying"}
                   </span>
                 </div>
 
@@ -393,14 +409,14 @@ export default function KitchenDashboard() {
                       onClick={() => updateOrderStatus(order.id, "Transit")}
                       className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition active:scale-95 flex items-center gap-1 shadow-md"
                     >
-                      🚀 Dispatch
+                      {order.table_number ? "🍽️ Serve" : "🚀 Dispatch"}
                     </button>
                   )}
                   <button
                     onClick={() => updateOrderStatus(order.id, "Delivered")}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-3.5 py-2.5 rounded-xl transition active:scale-95 flex items-center gap-1 shadow-lg shadow-blue-900/20"
                   >
-                    ✓ Mark Delivered
+                    {order.table_number ? "✓ Mark Served" : "✓ Mark Delivered"}
                   </button>
                 </div>
               </div>
