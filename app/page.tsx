@@ -47,7 +47,7 @@ const MENU_ITEMS = [
   },
   { 
     id: 4, 
-    name: "Mandazi and Kenyan Tea", 
+    name: "Mandazi chai", 
     price: 100, 
     desc: "Steaming masala chai served alongside freshly fried, golden-brown mandazi.", 
     category: "Meals", 
@@ -113,6 +113,86 @@ const MENU_ITEMS = [
     category: "Meals", 
     tag: "Popular",
     image: "/images/ugali-fish.png",
+    requiresId: false
+  },
+  { 
+    id: 11, 
+    name: "boiled egg", 
+    price: 40, 
+    desc: "Delicious boiled egg.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/boiled-egg.png",
+    requiresId: false
+  },
+  { 
+    id: 12, 
+    name: "Donut", 
+    price: 40, 
+    desc: "Delicious donut.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/donut.png",
+    requiresId: false
+  },
+  { 
+    id: 13, 
+    name: "half cake", 
+    price: 40, 
+    desc: "Delicious half cake.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/half-cake.png",
+    requiresId: false
+  },
+   { 
+    id: 14, 
+    name: "meat pie", 
+    price: 40, 
+    desc: "Delicious meat pie.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/meat-pie.png",
+    requiresId: false
+  },
+  { 
+    id: 15, 
+    name: "samosa nyama", 
+    price: 40, 
+    desc: "Delicious samosa with meat.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/samosa-nyama.png",
+    requiresId: false
+  },
+  { 
+    id: 16, 
+    name: "samosa ndengu", 
+    price: 40, 
+    desc: "Delicious samosa with cow peas.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/samosa-ndengu.png",
+    requiresId: false
+  },
+  { 
+    id: 17, 
+    name: "kebab nyama", 
+    price: 40, 
+    desc: "Delicious kebab with meat.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/kebab-nyama.png",
+    requiresId: false
+  },
+  { 
+    id: 18, 
+    name: "kebab viazi", 
+    price: 40, 
+    desc: "Delicious kebab with potatoes.", 
+    category: "Sides", 
+    tag: "Popular",
+    image: "/images/kebab-viazi.png",
     requiresId: false
   },
 ];
